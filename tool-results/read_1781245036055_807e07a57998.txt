@@ -1,0 +1,789 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import { useEffect, useState, useMemo, useCallback } from "react";
+     4→     4→import dynamic from "next/dynamic";
+     5→     5→import { Badge } from "@/components/ui/badge";
+     6→     6→import { Button } from "@/components/ui/button";
+     7→     7→import {
+     8→     8→  Select,
+     9→     9→  SelectContent,
+    10→    10→  SelectItem,
+    11→    11→  SelectTrigger,
+    12→    12→  SelectValue,
+    13→    13→} from "@/components/ui/select";
+    14→    14→import {
+    15→    15→  MapPin,
+    16→    16→  Target,
+    17→    17→  ChevronDown,
+    18→    18→  ChevronUp,
+    19→    19→  X,
+    20→    20→  Users,
+    21→    21→  TrendingUp,
+    22→    22→  Map,
+    23→    23→  CircleDot,
+    24→    24→  Flame,
+    25→    25→} from "lucide-react";
+    26→    26→import type { Dealer, BrandStats, StateStats } from "@/lib/types";
+    27→    27→import { BRAND_CONFIG } from "@/lib/types";
+    28→    28→
+    29→    29→const MapComponent = dynamic(() => import("@/components/MapComponent"), {
+    30→    30→  ssr: false,
+    31→    31→  loading: () => (
+    32→    32→    <div className="w-full h-full flex items-center justify-center bg-gray-950">
+    33→    33→      <div className="text-center">
+    34→    34→        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mx-auto mb-3"></div>
+    35→    35→        <p className="text-gray-400 text-sm">Loading map...</p>
+    36→    36→      </div>
+    37→    37→    </div>
+    38→    38→  ),
+    39→    39→});
+    40→    40→
+    41→    41→export default function Dashboard() {
+    42→    42→  const [dealers, setDealers] = useState<Dealer[]>([]);
+    43→    43→  const [loading, setLoading] = useState(true);
+    44→    44→  const [selectedBrands, setSelectedBrands] = useState<Set<string>>(
+    45→    45→    new Set(["continental"])
+    46→    46→  );
+    47→    47→  const [selectedState, setSelectedState] = useState<string>("all");
+    48→    48→  const [selectedCity, setSelectedCity] = useState<string>("all");
+    49→    49→  const [showStateTable, setShowStateTable] = useState(true);
+    50→    50→  const [mobileFilters, setMobileFilters] = useState(false);
+    51→    51→  const [mapMode, setMapMode] = useState<"dots" | "heatmap">("dots");
+    52→    52→  const [mapCenter, setMapCenter] = useState<[number, number]>([22.5, 78.9]);
+    53→    53→  const [mapZoom, setMapZoom] = useState(5);
+    54→    54→
+    55→    55→  useEffect(() => {
+    56→    56→    fetch("/dealers.json")
+    57→    57→      .then((r) => r.json())
+    58→    58→      .then((data: Dealer[]) => {
+    59→    59→        setDealers(data);
+    60→    60→        setLoading(false);
+    61→    61→      })
+    62→    62→      .catch(() => setLoading(false));
+    63→    63→  }, []);
+    64→    64→
+    65→    65→  const toggleBrand = useCallback((brandKey: string) => {
+    66→    66→    setSelectedBrands((prev) => {
+    67→    67→      const next = new Set(prev);
+    68→    68→      if (next.has(brandKey)) {
+    69→    69→        if (brandKey !== "continental" || next.size > 1) {
+    70→    70→          next.delete(brandKey);
+    71→    71→        }
+    72→    72→      } else {
+    73→    73→        next.add(brandKey);
+    74→    74→      }
+    75→    75→      return next;
+    76→    76→    });
+    77→    77→  }, []);
+    78→    78→
+    79→    79→  const selectAllBrands = useCallback(() => {
+    80→    80→    setSelectedBrands(new Set(Object.keys(BRAND_CONFIG)));
+    81→    81→  }, []);
+    82→    82→
+    83→    83→  const clearAllBrands = useCallback(() => {
+    84→    84→    setSelectedBrands(new Set(["continental"]));
+    85→    85→  }, []);
+    86→    86→
+    87→    87→  const states = useMemo(() => {
+    88→    88→    const s = new Set(dealers.map((d) => d.state).filter(Boolean));
+    89→    89→    return Array.from(s).sort();
+    90→    90→  }, [dealers]);
+    91→    91→
+    92→    92→  const cities = useMemo(() => {
+    93→    93→    if (selectedState === "all") return [];
+    94→    94→    const c = new Set(
+    95→    95→      dealers
+    96→    96→        .filter((d) => d.state === selectedState)
+    97→    97→        .map((d) => d.city)
+    98→    98→        .filter(Boolean)
+    99→    99→    );
+   100→   100→    return Array.from(c).sort();
+   101→   101→  }, [dealers, selectedState]);
+   102→   102→
+   103→   103→  const handleStateSelect = useCallback(
+   104→   104→    (state: string) => {
+   105→   105→      setSelectedState(state);
+   106→   106→      setSelectedCity("all");
+   107→   107→      if (state !== "all") {
+   108→   108→        const stateDealers = dealers.filter(
+   109→   109→          (d) => d.state === state && d.brandKey === "continental"
+   110→   110→        );
+   111→   111→        if (stateDealers.length > 0) {
+   112→   112→          const avgLat =
+   113→   113→            stateDealers.reduce((s, d) => s + d.lat, 0) / stateDealers.length;
+   114→   114→          const avgLng =
+   115→   115→            stateDealers.reduce((s, d) => s + d.lng, 0) / stateDealers.length;
+   116→   116→          setMapCenter([avgLat, avgLng]);
+   117→   117→          setMapZoom(7);
+   118→   118→        }
+   119→   119→      } else {
+   120→   120→        setMapCenter([22.5, 78.9]);
+   121→   121→        setMapZoom(5);
+   122→   122→      }
+   123→   123→    },
+   124→   124→    [dealers]
+   125→   125→  );
+   126→   126→
+   127→   127→  const filteredDealers = useMemo(() => {
+   128→   128→    let result = dealers.filter((d) => selectedBrands.has(d.brandKey));
+   129→   129→    if (selectedState !== "all") {
+   130→   130→      result = result.filter((d) => d.state === selectedState);
+   131→   131→    }
+   132→   132→    if (selectedCity !== "all") {
+   133→   133→      result = result.filter((d) => d.city === selectedCity);
+   134→   134→    }
+   135→   135→    return result;
+   136→   136→  }, [dealers, selectedBrands, selectedState, selectedCity]);
+   137→   137→
+   138→   138→  const continentalDealers = useMemo(
+   139→   139→    () => filteredDealers.filter((d) => d.brandKey === "continental"),
+   140→   140→    [filteredDealers]
+   141→   141→  );
+   142→   142→
+   143→   143→  const competitorDealers = useMemo(
+   144→   144→    () => filteredDealers.filter((d) => d.brandKey !== "continental"),
+   145→   145→    [filteredDealers]
+   146→   146→  );
+   147→   147→
+   148→   148→  const brandStats: BrandStats[] = useMemo(() => {
+   149→   149→    const stats: Record<string, BrandStats> = {};
+   150→   150→    for (const d of filteredDealers) {
+   151→   151→      if (!stats[d.brandKey]) {
+   152→   152→        stats[d.brandKey] = {
+   153→   153→          brand: d.brand,
+   154→   154→          brandKey: d.brandKey,
+   155→   155→          color: d.color,
+   156→   156→          count: 0,
+   157→   157→          states: 0,
+   158→   158→          cities: 0,
+   159→   159→        };
+   160→   160→      }
+   161→   161→      stats[d.brandKey].count++;
+   162→   162→    }
+   163→   163→    for (const key of Object.keys(stats)) {
+   164→   164→      const brandDealers = filteredDealers.filter((d) => d.brandKey === key);
+   165→   165→      stats[key].states = new Set(brandDealers.map((d) => d.state)).size;
+   166→   166→      stats[key].cities = new Set(brandDealers.map((d) => d.city)).size;
+   167→   167→    }
+   168→   168→    return Object.values(stats).sort((a, b) => b.count - a.count);
+   169→   169→  }, [filteredDealers]);
+   170→   170→
+   171→   171→  const stateStats: StateStats[] = useMemo(() => {
+   172→   172→    const stateMap: Record<string, StateStats> = {};
+   173→   173→    for (const d of filteredDealers) {
+   174→   174→      if (!d.state) continue;
+   175→   175→      if (!stateMap[d.state]) {
+   176→   176→        stateMap[d.state] = {
+   177→   177→          state: d.state,
+   178→   178→          total: 0,
+   179→   179→          continental: 0,
+   180→   180→          competitors: 0,
+   181→   181→          brands: {},
+   182→   182→        };
+   183→   183→      }
+   184→   184→      stateMap[d.state].total++;
+   185→   185→      if (d.brandKey === "continental") {
+   186→   186→        stateMap[d.state].continental++;
+   187→   187→      } else {
+   188→   188→        stateMap[d.state].competitors++;
+   189→   189→      }
+   190→   190→      stateMap[d.state].brands[d.brand] =
+   191→   191→        (stateMap[d.state].brands[d.brand] || 0) + 1;
+   192→   192→    }
+   193→   193→    return Object.values(stateMap).sort((a, b) => b.continental - a.continental);
+   194→   194→  }, [filteredDealers]);
+   195→   195→
+   196→   196→  const continentalStates = useMemo(
+   197→   197→    () =>
+   198→   198→      new Set(
+   199→   199→        dealers
+   200→   200→          .filter((d) => d.brandKey === "continental")
+   201→   201→          .map((d) => d.state)
+   202→   202→      ),
+   203→   203→    [dealers]
+   204→   204→  );
+   205→   205→
+   206→   206→  const handleCitySelect = useCallback(
+   207→   207→    (city: string) => {
+   208→   208→      setSelectedCity(city);
+   209→   209→      if (city !== "all") {
+   210→   210→        const cityDealers = dealers.filter((d) => d.city === city);
+   211→   211→        if (cityDealers.length > 0) {
+   212→   212→          const avgLat =
+   213→   213→            cityDealers.reduce((s, d) => s + d.lat, 0) / cityDealers.length;
+   214→   214→          const avgLng =
+   215→   215→            cityDealers.reduce((s, d) => s + d.lng, 0) / cityDealers.length;
+   216→   216→          setMapCenter([avgLat, avgLng]);
+   217→   217→          setMapZoom(11);
+   218→   218→        }
+   219→   219→      }
+   220→   220→    },
+   221→   221→    [dealers]
+   222→   222→  );
+   223→   223→
+   224→   224→  const continentalMarketShare = useMemo(() => {
+   225→   225→    const total = filteredDealers.length;
+   226→   226→    if (total === 0) return "0";
+   227→   227→    return ((continentalDealers.length / total) * 100).toFixed(1);
+   228→   228→  }, [filteredDealers, continentalDealers]);
+   229→   229→
+   230→   230→  const totalBrandCounts = useMemo(() => {
+   231→   231→    const counts: Record<string, number> = {};
+   232→   232→    for (const d of dealers) {
+   233→   233→      counts[d.brandKey] = (counts[d.brandKey] || 0) + 1;
+   234→   234→    }
+   235→   235→    return counts;
+   236→   236→  }, [dealers]);
+   237→   237→
+   238→   238→  if (loading) {
+   239→   239→    return (
+   240→   240→      <div className="h-screen flex items-center justify-center bg-black">
+   241→   241→        <div className="text-center">
+   242→   242→          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-yellow-500 mx-auto mb-4"></div>
+   243→   243→          <p className="text-gray-300 text-lg font-medium">
+   244→   244→            Loading Continental Competitor Analysis...
+   245→   245→          </p>
+   246→   246→          <p className="text-gray-500 text-sm mt-2">
+   247→   247→            Processing 13,500+ dealer locations
+   248→   248→          </p>
+   249→   249→        </div>
+   250→   250→      </div>
+   251→   251→    );
+   252→   252→  }
+   253→   253→
+   254→   254→  const maxStatCount = brandStats.length > 0 ? brandStats[0].count : 1;
+   255→   255→
+   256→   256→  return (
+   257→   257→    <div className="h-screen flex flex-col bg-black overflow-hidden">
+   258→   258→      {/* Header */}
+   259→   259→      <header className="dashboard-header bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 text-white shadow-lg shadow-black/50 shrink-0 border-b border-white/5">
+   260→   260→        <div className="px-4 py-2 flex items-center justify-between gap-3">
+   261→   261→          <div className="flex items-center gap-2.5 min-w-0">
+   262→   262→            <div className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center shrink-0 shadow-lg shadow-yellow-500/20">
+   263→   263→              <Target className="w-4 h-4 text-gray-900" />
+   264→   264→            </div>
+   265→   265→            <div className="min-w-0">
+   266→   266→              <h1 className="text-sm sm:text-base font-bold tracking-tight truncate text-white">
+   267→   267→                CONTINENTAL Tyre — Competitor Analysis
+   268→   268→              </h1>
+   269→   269→              <p className="text-[10px] sm:text-xs text-gray-500 truncate">
+   270→   270→                Dealer mapping across India • {dealers.length.toLocaleString()} dealers
+   271→   271→              </p>
+   272→   272→            </div>
+   273→   273→          </div>
+   274→   274→          <div className="flex items-center gap-2 shrink-0">
+   275→   275→            {/* Location Filters in Header */}
+   276→   276→            <div className="hidden md:flex items-center gap-2">
+   277→   277→              <Select value={selectedState} onValueChange={handleStateSelect}>
+   278→   278→                <SelectTrigger className="h-7 w-44 text-xs bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 focus:ring-yellow-500/30">
+   279→   279→                  <SelectValue placeholder="All States & UTs" />
+   280→   280→                </SelectTrigger>
+   281→   281→                <SelectContent className="bg-gray-900 border-gray-700">
+   282→   282→                  <SelectItem value="all" className="text-gray-300 focus:bg-gray-800 focus:text-white">All India</SelectItem>
+   283→   283→                  {states.map((s) => (
+   284→   284→                    <SelectItem key={s} value={s} className="text-gray-300 focus:bg-gray-800 focus:text-white">
+   285→   285→                      {s}
+   286→   286→                      {continentalStates.has(s) && (
+   287→   287→                        <span className="ml-1 text-yellow-500">●</span>
+   288→   288→                      )}
+   289→   289→                    </SelectItem>
+   290→   290→                  ))}
+   291→   291→                </SelectContent>
+   292→   292→              </Select>
+   293→   293→              {selectedState !== "all" && cities.length > 0 && (
+   294→   294→                <Select value={selectedCity} onValueChange={handleCitySelect}>
+   295→   295→                  <SelectTrigger className="h-7 w-36 text-xs bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 focus:ring-yellow-500/30">
+   296→   296→                    <SelectValue placeholder="All Cities" />
+   297→   297→                  </SelectTrigger>
+   298→   298→                  <SelectContent className="bg-gray-900 border-gray-700">
+   299→   299→                    <SelectItem value="all" className="text-gray-300 focus:bg-gray-800 focus:text-white">All Cities</SelectItem>
+   300→   300→                    {cities.map((c) => (
+   301→   301→                      <SelectItem key={c} value={c} className="text-gray-300 focus:bg-gray-800 focus:text-white">
+   302→   302→                        {c}
+   303→   303→                      </SelectItem>
+   304→   304→                    ))}
+   305→   305→                  </SelectContent>
+   306→   306→                </Select>
+   307→   307→              )}
+   308→   308→            </div>
+   309→   309→            {/* Map Mode Toggle */}
+   310→   310→            <div className="flex items-center bg-white/5 rounded-lg border border-white/10 p-0.5">
+   311→   311→              <button
+   312→   312→                onClick={() => setMapMode("dots")}
+   313→   313→                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all duration-200 ${
+   314→   314→                  mapMode === "dots"
+   315→   315→                    ? "bg-yellow-500/20 text-yellow-400 shadow-sm"
+   316→   316→                    : "text-gray-500 hover:text-gray-300"
+   317→   317→                }`}
+   318→   318→              >
+   319→   319→                <CircleDot className="w-3 h-3" />
+   320→   320→                <span className="hidden sm:inline">Dots</span>
+   321→   321→              </button>
+   322→   322→              <button
+   323→   323→                onClick={() => setMapMode("heatmap")}
+   324→   324→                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all duration-200 ${
+   325→   325→                  mapMode === "heatmap"
+   326→   326→                    ? "bg-orange-500/20 text-orange-400 shadow-sm"
+   327→   327→                    : "text-gray-500 hover:text-gray-300"
+   328→   328→                }`}
+   329→   329→              >
+   330→   330→                <Flame className="w-3 h-3" />
+   331→   331→                <span className="hidden sm:inline">Heatmap</span>
+   332→   332→              </button>
+   333→   333→            </div>
+   334→   334→            {/* Mobile filter button */}
+   335→   335→            <Button
+   336→   336→              variant="ghost"
+   337→   337→              size="sm"
+   338→   338→              className="md:hidden h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-white/10 shrink-0"
+   339→   339→              onClick={() => setMobileFilters(true)}
+   340→   340→            >
+   341→   341→              <Map className="w-4 h-4" />
+   342→   342→            </Button>
+   343→   343→            <Badge
+   344→   344→              variant="outline"
+   345→   345→              className="border-yellow-500/30 text-yellow-400 text-[10px] px-1.5 bg-yellow-500/5"
+   346→   346→            >
+   347→   347→              <MapPin className="w-2.5 h-2.5 mr-0.5" />
+   348→   348→              {continentalDealers.length} Continental
+   349→   349→            </Badge>
+   350→   350→            <Badge
+   351→   351→              variant="outline"
+   352→   352→              className="border-gray-600/30 text-gray-400 text-[10px] px-1.5 bg-white/5 hidden sm:inline-flex"
+   353→   353→            >
+   354→   354→              {competitorDealers.length.toLocaleString()} Competitors
+   355→   355→            </Badge>
+   356→   356→          </div>
+   357→   357→        </div>
+   358→   358→      </header>
+   359→   359→
+   360→   360→      {/* Mobile Location Filter Drawer */}
+   361→   361→      {mobileFilters && (
+   362→   362→        <>
+   363→   363→          <div
+   364→   364→            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] lg:hidden"
+   365→   365→            onClick={() => setMobileFilters(false)}
+   366→   366→          />
+   367→   367→          <div className="fixed right-0 top-0 bottom-0 w-72 bg-gray-950 border-l border-white/10 shadow-2xl z-[70] lg:hidden flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
+   368→   368→            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
+   369→   369→              <span className="text-sm font-semibold text-gray-200">Filters</span>
+   370→   370→              <Button
+   371→   371→                variant="ghost"
+   372→   372→                size="sm"
+   373→   373→                className="h-7 w-7 p-0 text-gray-400 hover:text-white"
+   374→   374→                onClick={() => setMobileFilters(false)}
+   375→   375→              >
+   376→   376→                <X className="w-4 h-4" />
+   377→   377→              </Button>
+   378→   378→            </div>
+   379→   379→            <div className="p-4 space-y-3">
+   380→   380→              <div>
+   381→   381→                <label className="text-xs font-medium text-gray-500 mb-1 block">State / UT</label>
+   382→   382→                <Select value={selectedState} onValueChange={(v) => { handleStateSelect(v); }}>
+   383→   383→                  <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-gray-300">
+   384→   384→                    <SelectValue placeholder="All States & UTs" />
+   385→   385→                  </SelectTrigger>
+   386→   386→                  <SelectContent className="bg-gray-900 border-gray-700">
+   387→   387→                    <SelectItem value="all" className="text-gray-300">All India</SelectItem>
+   388→   388→                    {states.map((s) => (
+   389→   389→                      <SelectItem key={s} value={s} className="text-gray-300">
+   390→   390→                        {s}
+   391→   391→                        {continentalStates.has(s) && (
+   392→   392→                          <span className="ml-1 text-yellow-500">●</span>
+   393→   393→                        )}
+   394→   394→                      </SelectItem>
+   395→   395→                    ))}
+   396→   396→                  </SelectContent>
+   397→   397→                </Select>
+   398→   398→              </div>
+   399→   399→              {selectedState !== "all" && cities.length > 0 && (
+   400→   400→                <div>
+   401→   401→                  <label className="text-xs font-medium text-gray-500 mb-1 block">City</label>
+   402→   402→                  <Select value={selectedCity} onValueChange={handleCitySelect}>
+   403→   403→                    <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-gray-300">
+   404→   404→                      <SelectValue placeholder="All Cities" />
+   405→   405→                    </SelectTrigger>
+   406→   406→                    <SelectContent className="bg-gray-900 border-gray-700">
+   407→   407→                      <SelectItem value="all" className="text-gray-300">All Cities</SelectItem>
+   408→   408→                      {cities.map((c) => (
+   409→   409→                        <SelectItem key={c} value={c} className="text-gray-300">{c}</SelectItem>
+   410→   410→                      ))}
+   411→   411→                    </SelectContent>
+   412→   412→                  </Select>
+   413→   413→                </div>
+   414→   414→              )}
+   415→   415→            </div>
+   416→   416→            {/* Quick Stats on Mobile */}
+   417→   417→            <div className="px-4 pb-4">
+   418→   418→              <div className="grid grid-cols-2 gap-2">
+   419→   419→                <div className="bg-yellow-500/10 rounded-lg p-3 text-center border border-yellow-500/20">
+   420→   420→                  <div className="text-2xl font-bold text-yellow-400">{continentalDealers.length}</div>
+   421→   421→                  <div className="text-[10px] text-yellow-500/80 uppercase tracking-wider font-medium">Continental</div>
+   422→   422→                </div>
+   423→   423→                <div className="bg-white/5 rounded-lg p-3 text-center border border-white/10">
+   424→   424→                  <div className="text-2xl font-bold text-gray-300">{competitorDealers.length.toLocaleString()}</div>
+   425→   425→                  <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Competitors</div>
+   426→   426→                </div>
+   427→   427→                <div className="bg-emerald-500/10 rounded-lg p-3 text-center border border-emerald-500/20">
+   428→   428→                  <div className="text-2xl font-bold text-emerald-400">{continentalMarketShare}%</div>
+   429→   429→                  <div className="text-[10px] text-emerald-500/80 uppercase tracking-wider font-medium">Market Share</div>
+   430→   430→                </div>
+   431→   431→                <div className="bg-blue-500/10 rounded-lg p-3 text-center border border-blue-500/20">
+   432→   432→                  <div className="text-2xl font-bold text-blue-400">{new Set(continentalDealers.map((d) => d.state)).size}</div>
+   433→   433→                  <div className="text-[10px] text-blue-500/80 uppercase tracking-wider font-medium">States & UTs</div>
+   434→   434→                </div>
+   435→   435→              </div>
+   436→   436→            </div>
+   437→   437→          </div>
+   438→   438→        </>
+   439→   439→      )}
+   440→   440→
+   441→   441→      {/* Brand Selection Cards Strip */}
+   442→   442→      <div className="bg-gray-950 border-b border-white/5 shrink-0 dashboard-header" style={{ zIndex: 40 }}>
+   443→   443→        <div className="px-3 py-2.5">
+   444→   444→          {/* Top row: label + actions */}
+   445→   445→          <div className="flex items-center justify-between mb-2">
+   446→   446→            <div className="flex items-center gap-3">
+   447→   447→              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+   448→   448→                Select Brands
+   449→   449→              </h2>
+   450→   450→              {/* Quick Stats pills - desktop */}
+   451→   451→              <div className="hidden lg:flex items-center gap-2">
+   452→   452→                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-full px-2 py-0.5">
+   453→   453→                  <Users className="w-3 h-3" />
+   454→   454→                  {continentalDealers.length} Continental
+   455→   455→                </span>
+   456→   456→                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-400 bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
+   457→   457→                  {competitorDealers.length.toLocaleString()} Competitors
+   458→   458→                </span>
+   459→   459→                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-0.5">
+   460→   460→                  <TrendingUp className="w-3 h-3" />
+   461→   461→                  {continentalMarketShare}% Share
+   462→   462→                </span>
+   463→   463→                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-full px-2 py-0.5">
+   464→   464→                  <MapPin className="w-3 h-3" />
+   465→   465→                  {new Set(continentalDealers.map((d) => d.state)).size} States & UTs
+   466→   466→                </span>
+   467→   467→              </div>
+   468→   468→            </div>
+   469→   469→            <div className="flex gap-1">
+   470→   470→              <Button
+   471→   471→                variant="ghost"
+   472→   472→                size="sm"
+   473→   473→                className="h-6 text-[10px] px-2 text-gray-500 hover:text-gray-300 border border-white/10 rounded-md hover:bg-white/5"
+   474→   474→                onClick={selectAllBrands}
+   475→   475→              >
+   476→   476→                Select All
+   477→   477→              </Button>
+   478→   478→              <Button
+   479→   479→                variant="ghost"
+   480→   480→                size="sm"
+   481→   481→                className="h-6 text-[10px] px-2 text-gray-500 hover:text-gray-300 border border-white/10 rounded-md hover:bg-white/5"
+   482→   482→                onClick={clearAllBrands}
+   483→   483→              >
+   484→   484→                Reset
+   485→   485→              </Button>
+   486→   486→            </div>
+   487→   487→          </div>
+   488→   488→
+   489→   489→          {/* Brand Cards Row */}
+   490→   490→          <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar-dark">
+   491→   491→            {Object.entries(BRAND_CONFIG)
+   492→   492→              .sort(([, a], [, b]) => a.priority - b.priority)
+   493→   493→              .map(([key, config]) => {
+   494→   494→                const isSelected = selectedBrands.has(key);
+   495→   495→                const stat = brandStats.find((s) => s.brandKey === key);
+   496→   496→                const count = stat?.count || 0;
+   497→   497→                const totalForBrand = totalBrandCounts[key] || 0;
+   498→   498→                const statesCount = stat?.states || 0;
+   499→   499→                const citiesCount = stat?.cities || 0;
+   500→   500→                const barWidth = maxStatCount > 0 ? (count / maxStatCount) * 100 : 0;
+   501→   501→                const isContinental = key === "continental";
+   502→   502→
+   503→   503→                return (
+   504→   504→                  <button
+   505→   505→                    key={key}
+   506→   506→                    onClick={() => toggleBrand(key)}
+   507→   507→                    className={`
+   508→   508→                      brand-card shrink-0 w-[135px] rounded-xl p-2.5 text-left transition-all duration-200 cursor-pointer
+   509→   509→                      focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1
+   510→   510→                      ${isSelected
+   511→   511→                        ? "shadow-lg scale-[1.02]"
+   512→   512→                        : "opacity-60 hover:opacity-80 scale-100"
+   513→   513→                      }
+   514→   514→                    `}
+   515→   515→                    style={{
+   516→   516→                      backgroundColor: isSelected
+   517→   517→                        ? isContinental
+   518→   518→                          ? "rgba(255, 215, 0, 0.08)"
+   519→   519→                          : config.color + "12"
+   520→   520→                        : "rgba(255,255,255,0.05)",
+   521→   521→                      border: isSelected
+   522→   522→                        ? isContinental
+   523→   523→                          ? "1px solid rgba(255, 215, 0, 0.3)"
+   524→   524→                          : `1px solid ${config.color}30`
+   525→   525→                        : "1px solid rgba(255,255,255,0.1)",
+   526→   526→                      boxShadow: isSelected
+   527→   527→                        ? isContinental
+   528→   528→                          ? "0 0 20px rgba(255, 215, 0, 0.1)"
+   529→   529→                          : `0 0 16px ${config.color}15`
+   530→   530→                        : "none",
+   531→   531→                    }}
+   532→   532→                  >
+   533→   533→                    {/* Brand header: dot + name */}
+   534→   534→                    <div className="flex items-center gap-1.5 mb-1.5">
+   535→   535→                      <span
+   536→   536→                        className="w-2.5 h-2.5 rounded-full shrink-0"
+   537→   537→                        style={{
+   538→   538→                          backgroundColor: config.color,
+   539→   539→                          boxShadow: isSelected
+   540→   540→                            ? `0 0 8px ${config.color}60`
+   541→   541→                            : "none",
+   542→   542→                        }}
+   543→   543→                      />
+   544→   544→                      <span
+   545→   545→                        className={`text-[11px] font-semibold truncate ${
+   546→   546→                          isSelected
+   547→   547→                            ? isContinental
+   548→   548→                              ? "text-yellow-400"
+   549→   549→                              : "text-gray-200"
+   550→   550→                            : "text-gray-400"
+   551→   551→                        }`}
+   552→   552→                      >
+   553→   553→                        {config.label}
+   554→   554→                      </span>
+   555→   555→                      {isContinental && isSelected && (
+   556→   556→                        <span className="text-[7px] bg-yellow-400 text-gray-900 px-1 py-px rounded font-bold ml-auto shrink-0">
+   557→   557→                          TARGET
+   558→   558→                        </span>
+   559→   559→                      )}
+   560→   560→                    </div>
+   561→   561→
+   562→   562→                    {/* Count */}
+   563→   563→                    <div
+   564→   564→                      className={`text-lg font-bold leading-tight ${
+   565→   565→                        isSelected
+   566→   566→                          ? isContinental
+   567→   567→                            ? "text-yellow-400"
+   568→   568→                            : "text-white"
+   569→   569→                          : "text-gray-400"
+   570→   570→                      }`}
+   571→   571→                    >
+   572→   572→                      {isSelected ? count.toLocaleString() : totalForBrand.toLocaleString()}
+   573→   573→                    </div>
+   574→   574→
+   575→   575→                    {/* Mini progress bar */}
+   576→   576→                    {isSelected && (
+   577→   577→                      <div className="w-full bg-white/10 rounded-full h-1 mt-1.5 mb-1">
+   578→   578→                        <div
+   579→   579→                          className="h-1 rounded-full transition-all duration-500"
+   580→   580→                          style={{
+   581→   581→                            width: `${barWidth}%`,
+   582→   582→                            backgroundColor: config.color,
+   583→   583→                          }}
+   584→   584→                        />
+   585→   585→                      </div>
+   586→   586→                    )}
+   587→   587→
+   588→   588→                    {/* States / Cities */}
+   589→   589→                    {isSelected && (
+   590→   590→                      <div className="flex gap-2 text-[9px] text-gray-500">
+   591→   591→                        <span>{statesCount} states</span>
+   592→   592→                        <span>{citiesCount} cities</span>
+   593→   593→                      </div>
+   594→   594→                    )}
+   595→   595→                  </button>
+   596→   596→                );
+   597→   597→              })}
+   598→   598→          </div>
+   599→   599→        </div>
+   600→   600→      </div>
+   601→   601→
+   602→   602→      {/* Main Content - Map + Bottom Panel */}
+   603→   603→      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+   604→   604→        {/* Map */}
+   605→   605→        <div className="flex-1 min-h-0 map-wrapper">
+   606→   606→          <MapComponent
+   607→   607→            dealers={filteredDealers}
+   608→   608→            center={mapCenter}
+   609→   609→            zoom={mapZoom}
+   610→   610→            selectedBrands={selectedBrands}
+   611→   611→            mapMode={mapMode}
+   612→   612→          />
+   613→   613→          {/* Map Legend */}
+   614→   614→          <div className="map-overlay absolute bottom-3 left-3 bg-black/80 backdrop-blur-md rounded-lg shadow-lg shadow-black/30 p-2.5 border border-white/10">
+   615→   615→            <h4 className="text-[10px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+   616→   616→              Legend
+   617→   617→            </h4>
+   618→   618→            {mapMode === "heatmap" ? (
+   619→   619→              <div className="space-y-1.5">
+   620→   620→                <div className="flex items-center gap-1.5">
+   621→   621→                  <div className="w-24 h-2 rounded-full" style={{ background: "linear-gradient(to right, transparent, #fef9c3, #fde047, #facc15, #f97316, #ea580c, #dc2626, #991b1b, #450a0a)" }} />
+   622→   622→                </div>
+   623→   623→                <div className="flex justify-between text-[8px] text-gray-500 w-24">
+   624→   624→                  <span>Low</span>
+   625→   625→                  <span>High</span>
+   626→   626→                </div>
+   627→   627→                <div className="text-[8px] text-gray-500 mt-1">
+   628→   628→                  Continental = higher intensity
+   629→   629→                </div>
+   630→   630→              </div>
+   631→   631→            ) : (
+   632→   632→              <div className="grid grid-cols-3 gap-x-3 gap-y-0.5">
+   633→   633→                {Object.entries(BRAND_CONFIG)
+   634→   634→                  .filter(([key]) => selectedBrands.has(key))
+   635→   635→                  .sort(([, a], [, b]) => a.priority - b.priority)
+   636→   636→                  .map(([key, config]) => (
+   637→   637→                    <div key={key} className="flex items-center gap-1">
+   638→   638→                      <span
+   639→   639→                        className="w-2 h-2 rounded-full shrink-0"
+   640→   640→                        style={{
+   641→   641→                          backgroundColor: config.color,
+   642→   642→                          boxShadow:
+   643→   643→                            key === "continental"
+   644→   644→                              ? `0 0 6px ${config.color}`
+   645→   645→                              : "none",
+   646→   646→                        }}
+   647→   647→                      />
+   648→   648→                      <span className="text-[9px] text-gray-400 whitespace-nowrap">
+   649→   649→                        {config.label}
+   650→   650→                      </span>
+   651→   651→                    </div>
+   652→   652→                  ))}
+   653→   653→              </div>
+   654→   654→            )}
+   655→   655→          </div>
+   656→   656→        </div>
+   657→   657→
+   658→   658→        {/* Bottom Panel - State Analysis */}
+   659→   659→        <div className="bottom-panel bg-gray-950 border-t border-white/5 overflow-hidden shrink-0 flex flex-col" style={{ height: showStateTable ? "clamp(140px, 22vh, 220px)" : "40px" }}>
+   660→   660→          <button
+   661→   661→            onClick={() => setShowStateTable(!showStateTable)}
+   662→   662→            className="flex items-center justify-between px-4 py-1.5 hover:bg-white/5 transition-colors shrink-0 border-b border-white/5"
+   663→   663→          >
+   664→   664→            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+   665→   665→              State / UT Analysis
+   666→   666→            </h3>
+   667→   667→            {showStateTable ? (
+   668→   668→              <ChevronDown className="w-3.5 h-3.5 text-gray-600" />
+   669→   669→            ) : (
+   670→   670→              <ChevronUp className="w-3.5 h-3.5 text-gray-600" />
+   671→   671→            )}
+   672→   672→          </button>
+   673→   673→          {showStateTable && (
+   674→   674→            <div className="flex-1 min-h-0 overflow-x-auto custom-scrollbar-dark">
+   675→   675→              <table className="w-full text-xs">
+   676→   676→                <thead className="bg-white/5 sticky top-0 z-10">
+   677→   677→                  <tr>
+   678→   678→                    <th className="text-left px-3 py-1.5 font-semibold text-gray-500 min-w-[130px] text-[10px] uppercase tracking-wider">
+   679→   679→                      State / UT
+   680→   680→                    </th>
+   681→   681→                    <th className="text-center px-2 py-1.5 font-semibold text-yellow-500 min-w-[70px] text-[10px] uppercase tracking-wider">
+   682→   682→                      Continental
+   683→   683→                    </th>
+   684→   684→                    <th className="text-center px-2 py-1.5 font-semibold text-gray-500 min-w-[70px] text-[10px] uppercase tracking-wider">
+   685→   685→                      Competitors
+   686→   686→                    </th>
+   687→   687→                    <th className="text-center px-2 py-1.5 font-semibold text-gray-500 min-w-[50px] text-[10px] uppercase tracking-wider">
+   688→   688→                      Total
+   689→   689→                    </th>
+   690→   690→                    <th className="text-center px-2 py-1.5 font-semibold text-gray-500 min-w-[50px] text-[10px] uppercase tracking-wider">
+   691→   691→                      Share
+   692→   692→                    </th>
+   693→   693→                    <th className="text-left px-3 py-1.5 font-semibold text-gray-500 min-w-[240px] text-[10px] uppercase tracking-wider">
+   694→   694→                      Distribution
+   695→   695→                    </th>
+   696→   696→                  </tr>
+   697→   697→                </thead>
+   698→   698→                <tbody>
+   699→   699→                  {stateStats.slice(0, 20).map((ss) => {
+   700→   700→                    const share =
+   701→   701→                      ss.total > 0
+   702→   702→                        ? ((ss.continental / ss.total) * 100).toFixed(1)
+   703→   703→                        : "0.0";
+   704→   704→                    const maxBrand = Math.max(
+   705→   705→                      ...Object.values(ss.brands),
+   706→   706→                      1
+   707→   707→                    );
+   708→   708→                    return (
+   709→   709→                      <tr
+   710→   710→                        key={ss.state}
+   711→   711→                        className="border-b border-white/5 hover:bg-yellow-500/5 cursor-pointer transition-colors"
+   712→   712→                        onClick={() => handleStateSelect(ss.state)}
+   713→   713→                      >
+   714→   714→                        <td className="px-3 py-1 font-medium text-gray-300">
+   715→   715→                          <span className="truncate block max-w-[120px]">
+   716→   716→                            {ss.state}
+   717→   717→                          </span>
+   718→   718→                          {ss.continental > 0 && (
+   719→   719→                            <span className="ml-1 text-yellow-500 text-[8px]">
+   720→   720→                              ●
+   721→   721→                            </span>
+   722→   722→                          )}
+   723→   723→                        </td>
+   724→   724→                        <td className="px-2 py-1 text-center font-bold text-yellow-400">
+   725→   725→                          {ss.continental}
+   726→   726→                        </td>
+   727→   727→                        <td className="px-2 py-1 text-center text-gray-500">
+   728→   728→                          {ss.competitors.toLocaleString()}
+   729→   729→                        </td>
+   730→   730→                        <td className="px-2 py-1 text-center font-medium text-gray-400">
+   731→   731→                          {ss.total.toLocaleString()}
+   732→   732→                        </td>
+   733→   733→                        <td className="px-2 py-1 text-center">
+   734→   734→                          <span
+   735→   735→                            className={`font-medium ${
+   736→   736→                              parseFloat(share) >= 5
+   737→   737→                                ? "text-emerald-400"
+   738→   738→                                : parseFloat(share) >= 1
+   739→   739→                                ? "text-yellow-400"
+   740→   740→                                : "text-gray-500"
+   741→   741→                            }`}
+   742→   742→                          >
+   743→   743→                            {share}%
+   744→   744→                          </span>
+   745→   745→                        </td>
+   746→   746→                        <td className="px-3 py-1">
+   747→   747→                          <div className="flex gap-px h-4 items-end">
+   748→   748→                            {Object.entries(ss.brands)
+   749→   749→                              .sort(([, a], [, b]) => b - a)
+   750→   750→                              .map(([brand, count]) => {
+   751→   751→                                const config = Object.values(
+   752→   752→                                  BRAND_CONFIG
+   753→   753→                                ).find((c) => c.label === brand);
+   754→   754→                                const height = Math.max(
+   755→   755→                                  (count / maxBrand) * 16,
+   756→   756→                                  1.5
+   757→   757→                                );
+   758→   758→                                return (
+   759→   759→                                  <div
+   760→   760→                                    key={brand}
+   761→   761→                                    title={`${brand}: ${count}`}
+   762→   762→                                    className="w-1.5 rounded-t-sm transition-all hover:w-2.5"
+   763→   763→                                    style={{
+   764→   764→                                      height: `${height}px`,
+   765→   765→                                      backgroundColor:
+   766→   766→                                        config?.color || "#999",
+   767→   767→                                      opacity:
+   768→   768→                                        brand === "Continental"
+   769→   769→                                          ? 1
+   770→   770→                                          : 0.4,
+   771→   771→                                    }}
+   772→   772→                                  />
+   773→   773→                                );
+   774→   774→                              })}
+   775→   775→                          </div>
+   776→   776→                        </td>
+   777→   777→                      </tr>
+   778→   778→                    );
+   779→   779→                  })}
+   780→   780→                </tbody>
+   781→   781→              </table>
+   782→   782→            </div>
+   783→   783→          )}
+   784→   784→        </div>
+   785→   785→      </div>
+   786→   786→    </div>
+   787→   787→  );
+   788→   788→}
+   789→   789→
