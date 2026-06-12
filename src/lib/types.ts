@@ -34,7 +34,7 @@ export const BRAND_CONFIG: Record<string, { color: string; label: string; priori
   continental: { color: '#FFD700', label: 'Continental', priority: 0 },
   bridgestone: { color: '#E74C3C', label: 'Bridgestone', priority: 1 },
   mrf: { color: '#E91E63', label: 'MRF', priority: 2 },
-  apollo: { color: '#F39C12', label: 'Apollo', priority: 3 },
+  apollo: { color: '#F39C12', label: 'Apollo Tyres', priority: 3 },
   goodyear: { color: '#00BCD4', label: 'Goodyear', priority: 4 },
   ceat: { color: '#27AE60', label: 'CEAT', priority: 5 },
   jktyre: { color: '#8E44AD', label: 'JK Tyre', priority: 6 },

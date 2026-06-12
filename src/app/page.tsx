@@ -22,6 +22,8 @@ import {
   Map,
   CircleDot,
   Flame,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 import type { Dealer, BrandStats, StateStats } from "@/lib/types";
 import { BRAND_CONFIG } from "@/lib/types";
@@ -51,6 +53,7 @@ export default function Dashboard() {
   const [mapMode, setMapMode] = useState<"dots" | "heatmap">("dots");
   const [mapCenter, setMapCenter] = useState<[number, number]>([22.5, 78.9]);
   const [mapZoom, setMapZoom] = useState(5);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     fetch("/dealers.json")
@@ -264,7 +267,7 @@ export default function Dashboard() {
             </div>
             <div className="min-w-0">
               <h1 className="text-sm sm:text-base font-bold tracking-tight truncate text-white">
-                CONTINENTAL Tyre — Competitor Analysis
+                CONTINENTAL TIRE — Competitor Analysis
               </h1>
               <p className="text-[10px] sm:text-xs text-gray-500 truncate">
                 Dealer mapping across India • {dealers.length.toLocaleString()} dealers
@@ -602,7 +605,7 @@ export default function Dashboard() {
       {/* Main Content - Map + Bottom Panel */}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {/* Map */}
-        <div className="flex-1 min-h-0 map-wrapper">
+        <div className={`flex-1 min-h-0 map-wrapper relative ${isFullscreen ? "fixed inset-0 z-50 bg-black" : ""}`}>
           <MapComponent
             dealers={filteredDealers}
             center={mapCenter}
@@ -610,8 +613,16 @@ export default function Dashboard() {
             selectedBrands={selectedBrands}
             mapMode={mapMode}
           />
+          {/* Fullscreen Toggle Button */}
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="absolute top-3 right-3 z-[1000] bg-black/80 backdrop-blur-md hover:bg-black/90 text-gray-300 hover:text-white rounded-lg p-2 border border-white/10 shadow-lg shadow-black/30 transition-all duration-200"
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Map"}
+          >
+            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+          </button>
           {/* Map Legend */}
-          <div className="map-overlay absolute bottom-3 left-3 bg-black/80 backdrop-blur-md rounded-lg shadow-lg shadow-black/30 p-2.5 border border-white/10">
+          <div className={`map-overlay absolute bottom-3 left-3 bg-black/80 backdrop-blur-md rounded-lg shadow-lg shadow-black/30 p-2.5 border border-white/10 ${isFullscreen ? "bottom-6 left-6" : ""}`}>
             <h4 className="text-[10px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
               Legend
             </h4>
@@ -656,6 +667,7 @@ export default function Dashboard() {
         </div>
 
         {/* Bottom Panel - State Analysis */}
+        {!isFullscreen && (
         <div className="bottom-panel bg-gray-950 border-t border-white/5 overflow-hidden shrink-0 flex flex-col" style={{ height: showStateTable ? "clamp(140px, 22vh, 220px)" : "40px" }}>
           <button
             onClick={() => setShowStateTable(!showStateTable)}
@@ -782,6 +794,7 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );
