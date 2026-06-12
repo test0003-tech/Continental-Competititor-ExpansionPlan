@@ -11,6 +11,10 @@ export interface Dealer {
   lat: number;
   lng: number;
   type: string;
+  code?: string;
+  cust_group?: string;
+  email?: string;
+  verified?: string;
 }
 
 export interface BrandStats {
