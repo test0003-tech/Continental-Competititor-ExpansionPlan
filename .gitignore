@@ -64,3 +64,7 @@ server.log
 /mini-services/
 /worklog.md
 /agent-ctx/
+/tool-results/
+/ceat_tyreplex_raw.json
+/scrape_*.js
+/upload/
