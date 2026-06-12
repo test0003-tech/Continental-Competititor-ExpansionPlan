@@ -1,0 +1,32 @@
+[
+  {
+    "dealer_id": "23474",
+    "name": "SHREE HEMKUNT TYRES AND SERVICES",
+    "address": "PLOT NUMBER-09 GROUND FLOOR CISF CAMPUS ROAD, AHINSA KHAND-02 INDIRAPURAM 201014",
+    "phone": "9587788666",
+    "contact_person": "MANDEEP SINGH",
+    "city_id": "328",
+    "verified": "1",
+    "slug": "shree-hemkunt-tyres-and-services"
+  },
+  {
+    "dealer_id": "12271",
+    "name": "LOTUS PROPMART PRIVATE LIMITED",
+    "address": "KHASRA NO. 91 AND 108 HOUSE NO. 310& MAYUR VIHAR PHASE-I&VILLAGE CHILLA SARODA& DELHI -110091 110091",
+    "phone": "",
+    "contact_person": "Vijay Kumar",
+    "city_id": "1630",
+    "verified": "1",
+    "slug": "lotus-propmart-private-limited"
+  },
+  {
+    "dealer_id": "23302",
+    "name": "Grover Tyre Shopee",
+    "address": "Grover Tyre Shopee Opp. Bhardwaj Hospital  Haridwar Road Rishikesh 249201",
+    "phone": "9808090404/9719103901",
+    "contact_person": "Ajay Grover",
+    "city_id": "306",
+    "verified": "1",
+    "slug": "grover-tyre-shopee_3"
+  }
+]
